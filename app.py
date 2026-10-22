@@ -2,38 +2,23 @@ import os
 import re
 import glob
 import warnings
-
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    confusion_matrix,
-    mean_squared_error,
-)
-
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, mean_squared_error
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import adfuller
 
 warnings.filterwarnings("ignore")
 
 CONFIG = {
-    "file_candidates": [
-        "FINAL-ADS-DENGUE-DATABASE-2021-2025.xlsx",
-        "FINAL-ADS-DENGUE-DATABASE-2021-2025.xls",
-        "FINAL-ADS-DENGUE-DATABASE-2021-2025.csv",
-    ],
+    "file_candidates": ["FINAL-ADS-DENGUE-DATABASE-2021-2025.xlsx", "FINAL-ADS-DENGUE-DATABASE-2021-2025.xls", "FINAL-ADS-DENGUE-DATABASE-2021-2025.csv"],
     "search_paths": [".", "/content/data", "/content", "/mount/src"],
     "train_years": [2022, 2023, 2024],
     "test_years": [2025, 2026],
@@ -46,131 +31,95 @@ CONFIG = {
     "random_state": 42,
 }
 
-NULL_TOKENS = {
-    "", "nan", "none", "n/a", "na", "null", "-", "--", ".", "?",
-    "undefined", "#n/a", "#value!", "not applicable", "notavailable",
-}
+NULL_TOKENS = {"", "nan", "none", "n/a", "na", "null", "-", "--", ".", "?", "undefined", "#n/a", "#value!", "not applicable", "notavailable"}
 
 def clean_text(value):
-    if value is None:
-        return np.nan
+    if value is None: return np.nan
     try:
-        if pd.isna(value):
-            return np.nan
-    except (TypeError, ValueError):
-        pass
-    s = str(value)
-    s = s.replace("\xa0", " ").replace("\u200b", "").replace("\t", " ").replace("\n", " ")
+        if pd.isna(value): return np.nan
+    except (TypeError, ValueError): pass
+    s = str(value).replace("\xa0", " ").replace("\u200b", "").replace("\t", " ").replace("\n", " ")
     s = re.sub(r"\s+", " ", s).strip()
-    if s.lower() in NULL_TOKENS:
-        return np.nan
+    if s.lower() in NULL_TOKENS: return np.nan
     return s
 
 def clean_title(value):
     s = clean_text(value)
-    if pd.isna(s):
-        return np.nan
-    s = re.sub(r"\s+", " ", s).strip()
-    return s.title()
+    if pd.isna(s): return np.nan
+    return re.sub(r"\s+", " ", s).strip().title()
 
 def normalize_sex(value):
     s = clean_text(value)
-    if pd.isna(s):
-        return "Unknown"
+    if pd.isna(s): return "Unknown"
     s = s.lower()
-    if s.startswith("m"):
-        return "Male"
-    if s.startswith("f"):
-        return "Female"
+    if s.startswith("m"): return "Male"
+    if s.startswith("f"): return "Female"
     return "Unknown"
 
 def normalize_clinical(value):
     s = clean_text(value)
-    if pd.isna(s):
-        return "Unknown"
+    if pd.isna(s): return "Unknown"
     s = s.lower()
-    if "severe" in s:
-        return "Severe Dengue"
-    if "warning" in s:
-        return "Dengue With Warning Signs"
-    if "without" in s:
-        return "Dengue Without Warning Signs"
-    if "dengue" in s:
-        return "Dengue (Unspecified)"
+    if "severe" in s: return "Severe Dengue"
+    if "warning" in s: return "Dengue With Warning Signs"
+    if "without" in s: return "Dengue Without Warning Signs"
+    if "dengue" in s: return "Dengue (Unspecified)"
     return "Unknown"
 
 def normalize_case_class(value):
     s = clean_text(value)
-    if pd.isna(s):
-        return "Unknown"
+    if pd.isna(s): return "Unknown"
     s = s.lower()
-    if "confirm" in s:
-        return "Confirmed"
-    if "probable" in s:
-        return "Probable"
-    if "suspect" in s:
-        return "Suspect"
+    if "confirm" in s: return "Confirmed"
+    if "probable" in s: return "Probable"
+    if "suspect" in s: return "Suspect"
     return "Unknown"
 
 def normalize_outcome(value):
     s = clean_text(value)
-    if pd.isna(s):
-        return "Unknown"
+    if pd.isna(s): return "Unknown"
     s = s.lower()
-    if "died" in s or "dead" in s or "deceased" in s:
-        return "Died"
-    if "advice" in s or "against" in s:
-        return "Against Medical Advice"
-    if "alive" in s or "recovered" in s:
-        return "Alive"
+    if "died" in s or "dead" in s or "deceased" in s: return "Died"
+    if "advice" in s or "against" in s: return "Against Medical Advice"
+    if "alive" in s or "recovered" in s: return "Alive"
     return "Unknown"
 
 def resolve_column(df, candidates):
     normalized = {str(c).lower().replace(" ", "").replace("_", ""): c for c in df.columns}
     for cand in candidates:
         key = cand.lower().replace(" ", "").replace("_", "")
-        if key in normalized:
-            return normalized[key]
+        if key in normalized: return normalized[key]
     return None
 
 def locate_file():
     for path in CONFIG["search_paths"]:
-        if not os.path.isdir(path):
-            continue
+        if not os.path.isdir(path): continue
         for fname in CONFIG["file_candidates"]:
             full = os.path.join(path, fname)
-            if os.path.exists(full):
-                return full
+            if os.path.exists(full): return full
     for path in CONFIG["search_paths"]:
-        if not os.path.isdir(path):
-            continue
+        if not os.path.isdir(path): continue
         for ext in ("*.xlsx", "*.xls", "*.csv"):
             for f in glob.glob(os.path.join(path, ext)):
                 base = os.path.basename(f).lower()
-                if "dengue" in base or "final-ads" in base or "bantay" in base:
-                    return f
+                if "dengue" in base or "final-ads" in base or "bantay" in base: return f
     return None
 
 @st.cache_data(show_spinner=True)
 def load_raw():
     path = locate_file()
-    if path is None:
-        return None, "No dataset file found."
+    if path is None: return None, "No dataset file found."
     try:
-        if path.lower().endswith(".csv"):
-            df = pd.read_csv(path)
-        else:
-            df = pd.read_excel(path)
+        if path.lower().endswith(".csv"): df = pd.read_csv(path)
+        else: df = pd.read_excel(path)
         return df, os.path.basename(path)
-    except Exception as exc:
-        return None, f"Unable to read dataset: {exc}"
+    except Exception as exc: return None, f"Unable to read dataset: {exc}"
 
 @st.cache_data(show_spinner=True)
 def preprocess(df_raw):
     df = df_raw.copy()
     df.columns = [re.sub(r"\s+", " ", str(c)).strip() for c in df.columns]
-    if "Year" in df.columns:
-        df = df[pd.to_numeric(df["Year"], errors="coerce").notna()]
+    if "Year" in df.columns: df = df[pd.to_numeric(df["Year"], errors="coerce").notna()]
 
     c_year = resolve_column(df, ["Year"])
     c_mw = resolve_column(df, ["MORBIDITY WEEK", "MW", "MorbidityWeek"])
@@ -202,13 +151,9 @@ def preprocess(df_raw):
     clean = clean[(clean["Morbidity_Week"] >= 1) & (clean["Morbidity_Week"] <= 53)]
     clean = clean[(clean["Year"] >= 2000) & (clean["Year"] <= 2100)]
 
-    if clean["Case_ID"].notna().any():
-        clean = clean.drop_duplicates(subset=["Case_ID"], keep="first")
+    if clean["Case_ID"].notna().any(): clean = clean.drop_duplicates(subset=["Case_ID"], keep="first")
     clean = clean.drop_duplicates()
-
-    median_age = clean["Age"].median()
-    clean["Age"] = clean["Age"].fillna(median_age)
-
+    clean["Age"] = clean["Age"].fillna(clean["Age"].median())
     clean["Municipality"] = clean["Municipality"].fillna("Unknown")
     clean["Barangay"] = clean["Barangay"].fillna("Unknown")
     clean["Age_Band"] = pd.cut(clean["Age"], bins=CONFIG["age_bins"], labels=CONFIG["age_labels"], right=False)
@@ -225,16 +170,14 @@ def preprocess(df_raw):
     clean["Week_Year"] = clean["Date_Onset"].dt.to_period("W").dt.to_timestamp()
     return clean
 
-def pct(part, total):
-    return 0.0 if total == 0 else 100.0 * part / total
+def pct(part, total): return 0.0 if total == 0 else 100.0 * part / total
 
 def classification_metrics(y_true, y_pred, labels):
-    acc = accuracy_score(y_true, y_pred)
-    prec = precision_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)
-    rec = recall_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)
-    f1 = f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
-    return acc, prec, rec, f1, cm
+    return (accuracy_score(y_true, y_pred), 
+            precision_score(y_true, y_pred, labels=labels, average="macro", zero_division=0),
+            recall_score(y_true, y_pred, labels=labels, average="macro", zero_division=0),
+            f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0),
+            confusion_matrix(y_true, y_pred, labels=labels))
 
 def build_rf_features(df):
     feature_df = pd.DataFrame(index=df.index)
@@ -244,8 +187,7 @@ def build_rf_features(df):
     feature_df["Municipality"] = df["Municipality"]
     feature_df["Age_Band"] = df["Age_Band"].astype(str)
     feature_df["Month"] = df["Month"].fillna(0).astype(int)
-    feature_df = pd.get_dummies(feature_df, columns=["Sex", "Municipality", "Age_Band"], drop_first=False)
-    return feature_df
+    return pd.get_dummies(feature_df, columns=["Sex", "Municipality", "Age_Band"], drop_first=False)
 
 def run_rf(df, target_col, target_name, train_years, test_years, seed, n_estimators):
     labels_series = df[target_col]
@@ -258,11 +200,8 @@ def run_rf(df, target_col, target_name, train_years, test_years, seed, n_estimat
     if len(train) < 30 or len(test) < 10: return None
 
     X_train = build_rf_features(train)
-    X_test = build_rf_features(test)
-    X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
-
-    y_train = train[target_col]
-    y_test = test[target_col]
+    X_test = build_rf_features(test).reindex(columns=X_train.columns, fill_value=0)
+    y_train, y_test = train[target_col], test[target_col]
     labels = sorted(data[target_col].unique().tolist())
     min_class_count = int(data[target_col].value_counts().min())
 
@@ -275,11 +214,7 @@ def run_rf(df, target_col, target_name, train_years, test_years, seed, n_estimat
     baseline_acc = float((y_test == baseline_class).mean())
     fi = pd.Series(model.feature_importances_, index=X_train.columns).sort_values(ascending=False)
 
-    return {
-        "target": target_name, "labels": labels, "acc": acc, "prec": prec, "rec": rec, "f1": f1,
-        "cm": cm, "baseline_class": baseline_class, "baseline_acc": baseline_acc,
-        "feature_importance": fi, "n_train": len(train), "n_test": len(test), "min_class_count": min_class_count,
-    }
+    return {"target": target_name, "labels": labels, "acc": acc, "prec": prec, "rec": rec, "f1": f1, "cm": cm, "baseline_class": baseline_class, "baseline_acc": baseline_acc, "feature_importance": fi, "n_train": len(train), "n_test": len(test), "min_class_count": min_class_count}
 
 def detect_arima_order(series, seed):
     best_aic = np.inf
@@ -292,8 +227,7 @@ def detect_arima_order(series, seed):
                     if np.isfinite(fit.aic) and fit.aic < best_aic:
                         best_aic = fit.aic
                         best_order = (p, d, q)
-                except Exception:
-                    continue
+                except Exception: continue
     return best_order, best_aic
 
 @st.cache_data(show_spinner=True)
@@ -301,50 +235,30 @@ def compute_all(df_filtered):
     results = {}
     results["n_total"] = len(df_filtered)
     age_counts = df_filtered["Age_Band"].astype(str).value_counts()
-    results["age_counts"] = age_counts
-    results["age_pct"] = (age_counts / age_counts.sum() * 100).round(2)
-
+    results["age_counts"], results["age_pct"] = age_counts, (age_counts / age_counts.sum() * 100).round(2)
     sex_counts = df_filtered["Sex"].value_counts()
-    results["sex_counts"] = sex_counts
-    results["sex_pct"] = (sex_counts / sex_counts.sum() * 100).round(2)
-
+    results["sex_counts"], results["sex_pct"] = sex_counts, (sex_counts / sex_counts.sum() * 100).round(2)
     clin_counts = df_filtered["Clinical"].value_counts()
-    results["clinical_counts"] = clin_counts
-    results["clinical_pct"] = (clin_counts / clin_counts.sum() * 100).round(2)
-
-    case_counts = df_filtered["Case_Class"].value_counts()
-    results["case_counts"] = case_counts
-
+    results["clinical_counts"], results["clinical_pct"] = clin_counts, (clin_counts / clin_counts.sum() * 100).round(2)
+    results["case_counts"] = df_filtered["Case_Class"].value_counts()
     results["age_sex"] = pd.crosstab(df_filtered["Age_Band"].astype(str), df_filtered["Sex"])
     results["clin_age"] = pd.crosstab(df_filtered["Age_Band"].astype(str), df_filtered["Clinical"])
     results["case_age"] = pd.crosstab(df_filtered["Age_Band"].astype(str), df_filtered["Case_Class"])
-
     results["yearly"] = df_filtered.groupby("Year").size().sort_index()
     results["monthly"] = (df_filtered.dropna(subset=["Date_Onset"]).groupby("Month_Year").size().asfreq("MS").fillna(0))
     results["weekly"] = (df_filtered.dropna(subset=["Date_Onset"]).groupby("Week_Year").size().sort_index())
-
-    muni_counts = df_filtered["Municipality"].value_counts()
-    results["muni_counts"] = muni_counts
+    results["muni_counts"] = df_filtered["Municipality"].value_counts()
     results["brgy_counts"] = df_filtered.groupby(["Municipality", "Barangay"]).size().sort_values(ascending=False)
 
+    muni_agg = df_filtered.groupby("Municipality").agg(Cases=("Year", "count"), Mean_Age=("Age", "mean"), Severe=("Severity", lambda s: int((s == "High").sum())), Confirmed=("Case_Class", lambda s: int((s == "Confirmed").sum()))).fillna(0)
     cluster_summary = None
-    muni_agg = df_filtered.groupby("Municipality").agg(
-        Cases=("Year", "count"), Mean_Age=("Age", "mean"),
-        Severe=("Severity", lambda s: int((s == "High").sum())),
-        Confirmed=("Case_Class", lambda s: int((s == "Confirmed").sum())),
-    ).fillna(0)
-
     if len(muni_agg) >= CONFIG["k_clusters"]:
         feat = muni_agg.copy()
-        scaler = StandardScaler()
-        scaled = scaler.fit_transform(feat)
+        scaled = StandardScaler().fit_transform(feat)
         km = KMeans(n_clusters=CONFIG["k_clusters"], random_state=CONFIG["random_state"], n_init=10)
-        labels = km.fit_predict(scaled)
-        feat["Cluster"] = labels
+        feat["Cluster"] = km.fit_predict(scaled)
         cluster_summary = feat.sort_values("Cases", ascending=False)
-    results["muni_agg"] = muni_agg
-    results["cluster_summary"] = cluster_summary
-
+    results["muni_agg"], results["cluster_summary"] = muni_agg, cluster_summary
     results["rf_case"] = run_rf(df_filtered, "Case_Class", "Case Classification", CONFIG["train_years"], CONFIG["test_years"], CONFIG["random_state"], CONFIG["rf_estimators"])
     results["rf_sev"] = run_rf(df_filtered, "Severity", "Severity", CONFIG["train_years"], CONFIG["test_years"], CONFIG["random_state"], CONFIG["rf_estimators"])
 
@@ -354,26 +268,18 @@ def compute_all(df_filtered):
         train_series = monthly_all[monthly_all.index.year.isin(CONFIG["train_years"])]
         test_series = monthly_all[monthly_all.index.year.isin(CONFIG["test_years"])]
         if len(train_series) >= 8:
-            try:
-                adf_p = adfuller(train_series.dropna(), autolag="AIC")[1]
-            except Exception:
-                adf_p = 1.0
-
+            try: adf_p = adfuller(train_series.dropna(), autolag="AIC")[1]
+            except Exception: adf_p = 1.0
             order, aic = detect_arima_order(train_series, CONFIG["random_state"])
             try:
                 model_train = ARIMA(train_series, order=order).fit()
                 test_forecast = model_train.forecast(steps=len(test_series)) if len(test_series) > 0 else None
-                if test_forecast is not None and len(test_forecast) == len(test_series):
-                    rmse = float(np.sqrt(mean_squared_error(test_series.values, test_forecast.values)))
-                else:
-                    rmse = float("nan")
-
+                rmse = float(np.sqrt(mean_squared_error(test_series.values, test_forecast.values))) if test_forecast is not None and len(test_forecast) == len(test_series) else float("nan")
                 full_model = ARIMA(monthly_all, order=order).fit()
                 future = full_model.forecast(steps=CONFIG["arima_horizon"])
                 future.index = pd.date_range(start=monthly_all.index[-1] + pd.DateOffset(months=1), periods=CONFIG["arima_horizon"], freq="MS")
                 forecast_block = {"order": order, "aic": aic, "adf_p": adf_p, "rmse": rmse, "actual": monthly_all, "test_series": test_series, "test_forecast": test_forecast, "future": future}
-            except Exception:
-                forecast_block = None
+            except Exception: forecast_block = None
     results["forecast"] = forecast_block
 
     weekly_muni = (df_filtered.dropna(subset=["Date_Onset"]).groupby(["Municipality", pd.Grouper(key="Date_Onset", freq="W")]).size().rename("cases").reset_index())
@@ -384,8 +290,7 @@ def compute_all(df_filtered):
             if len(grp) < 6: continue
             latest = grp.iloc[-1]
             history = grp.iloc[:-1]["cases"]
-            mean_h = history.mean()
-            std_h = history.std() if history.std() > 0 else 1.0
+            mean_h, std_h = history.mean(), history.std() if history.std() > 0 else 1.0
             current = float(latest["cases"])
             if current > mean_h + 2 * std_h: level = "Critical"
             elif current > mean_h + std_h: level = "Warning"
@@ -397,39 +302,33 @@ def compute_all(df_filtered):
 
 st.set_page_config(page_title="Bantay Dengue Dashboard", layout="wide")
 
-st.markdown(
-    """
-    <style>
-    html, body, [class*="css"] { font-family: 'Segoe UI', Arial, sans-serif; }
-    .title-main { font-size: 1.9rem; font-weight: 700; color: #0D1B4C; text-align: center; padding: 0.4rem 0 0.2rem 0; }
-    .title-sub { font-size: 0.95rem; color: #5A6472; text-align: center; margin-bottom: 1.4rem; }
-    .kpi { background: linear-gradient(135deg, #1A237E 0%, #3949AB 100%); padding: 1rem; border-radius: 10px; color: #FFFFFF; text-align: center; border-bottom: 3px solid #FFB300; }
-    .kpi h2 { color: #FFD54F; margin: 0; font-size: 1.6rem; font-weight: 700; }
-    .kpi p { color: #E8EAF6; margin: 0; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.8px; }
-    .finding { background: #FAFBFC; border: 1px solid #E4E7EE; border-left: 6px solid #FF6F00; border-radius: 8px; padding: 0.9rem 1.1rem; margin-bottom: 0.9rem; }
-    .finding h5 { margin: 0 0 0.3rem 0; color: #1A237E; font-weight: 700; }
-    .finding p { margin: 0; font-size: 0.9rem; color: #333; }
-    .alert { padding: 0.85rem 1rem; border-radius: 8px; margin-bottom: 0.6rem; border-left: 6px solid; }
-    .alert-critical { border-color: #C62828; background: #FFF3F3; }
-    .alert-warning  { border-color: #F9A825; background: #FFFCF2; }
-    .alert-watch    { border-color: #1565C0; background: #F2F7FF; }
-    .alert-normal   { border-color: #2E7D32; background: #F2FBF3; }
-    .alert h5 { margin: 0 0 0.3rem 0; color: #0D1B4C; }
-    .alert p { margin: 0; font-size: 0.85rem; color: #444; }
-    .stTabs [data-baseweb="tab-list"] { gap: 6px; }
-    .stTabs [data-baseweb="tab"] { background-color: #ECEFF4; border-radius: 6px 6px 0 0; padding: 8px 16px; font-weight: 600; color: #1A237E; }
-    .stTabs [aria-selected="true"] { background-color: #1A237E !important; color: #FFD54F !important; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-st.markdown('<div class="title-main">Bantay Dengue Dashboard</div>', unsafe_allow_html=True)
-st.markdown('<div class="title-sub">Monitoring and analysis of dengue case records in Agusan del Sur, 2022 to 2026</div>', unsafe_allow_html=True)
+st.markdown("""
+<style>
+html, body, [class*="css"] { font-family: 'Segoe UI', Arial, sans-serif; }
+.title-main { font-size: 1.9rem; font-weight: 700; color: #0D1B4C; text-align: center; padding: 0.4rem 0 0.2rem 0; }
+.title-sub { font-size: 0.95rem; color: #5A6472; text-align: center; margin-bottom: 1.4rem; }
+.kpi { background: linear-gradient(135deg, #1A237E 0%, #3949AB 100%); padding: 1rem; border-radius: 10px; color: #FFFFFF; text-align: center; border-bottom: 3px solid #FFB300; }
+.kpi h2 { color: #FFD54F; margin: 0; font-size: 1.6rem; font-weight: 700; }
+.kpi p { color: #E8EAF6; margin: 0; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.8px; }
+.finding { background: #FAFBFC; border: 1px solid #E4E7EE; border-left: 6px solid #FF6F00; border-radius: 8px; padding: 0.9rem 1.1rem; margin-bottom: 0.9rem; }
+.finding h5 { margin: 0 0 0.3rem 0; color: #1A237E; font-weight: 700; }
+.finding p { margin: 0; font-size: 0.9rem; color: #333; }
+.alert { padding: 0.85rem 1rem; border-radius: 8px; margin-bottom: 0.6rem; border-left: 6px solid; }
+.alert-critical { border-color: #C62828; background: #FFF3F3; }
+.alert-warning  { border-color: #F9A825; background: #FFFCF2; }
+.alert-watch    { border-color: #1565C0; background: #F2F7FF; }
+.alert-normal   { border-color: #2E7D32; background: #F2FBF3; }
+.alert h5 { margin: 0 0 0.3rem 0; color: #0D1B4C; }
+.alert p { margin: 0; font-size: 0.85rem; color: #444; }
+.stTabs [data-baseweb="tab-list"] { gap: 6px; }
+.stTabs [data-baseweb="tab"] { background-color: #ECEFF4; border-radius: 6px 6px 0 0; padding: 8px 16px; font-weight: 600; color: #1A237E; }
+.stTabs [aria-selected="true"] { background-color: #1A237E !important; color: #FFD54F !important; }
+</style>
+""", unsafe_allow_html=True)
 
 st.sidebar.header("Upload & Options")
 uploaded_file = st.sidebar.file_uploader("Drag and drop file here", type=["csv", "xlsx"], help="Limit 200MB per file • CSV, XLSX")
-use_example = st.sidebar.checkbox("Use example dataset (if no upload)", value=True)
+use_example = st.sidebar.checkbox("Use example dataset (if no upload)", value=False)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Imbalance & Balancing Defaults")
@@ -437,15 +336,18 @@ st.sidebar.markdown("Default class balancing for the model:")
 smote_k = st.sidebar.number_input("Nearest-neighbors (SMOTE):", min_value=1, max_value=10, value=5)
 st.sidebar.markdown("---")
 
+st.markdown('<div class="title-main">BANTAY DENGUE DASHBOARD</div>', unsafe_allow_html=True)
+st.markdown('<div class="title-sub">Upload a CSV/Excel file — explore data cleaning, EDA, clustering, prediction, and forecasting. Toggle balancing options in the sidebar.</div>', unsafe_allow_html=True)
+
+if uploaded_file is None and not use_example:
+    st.info("Please upload a CSV/Excel to begin, or toggle 'Use example dataset' in the sidebar.")
+    st.stop()
+
 raw = None
 source_name = ""
-
 if uploaded_file is not None:
     try:
-        if uploaded_file.name.endswith('.csv'):
-            raw = pd.read_csv(uploaded_file)
-        else:
-            raw = pd.read_excel(uploaded_file)
+        raw = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
         source_name = uploaded_file.name
         st.sidebar.success(f"Loaded: {source_name}")
     except Exception as e:
@@ -453,11 +355,10 @@ if uploaded_file is not None:
         st.stop()
 elif use_example:
     raw, source_name = load_raw()
-    if raw is not None:
-        st.sidebar.success(f"Loaded: {source_name}")
+    if raw is not None: st.sidebar.success(f"Loaded: {source_name}")
 
 if raw is None:
-    st.info("Please upload a CSV/Excel file in the sidebar to begin, or check 'Use example dataset'.")
+    st.error("Dataset could not be loaded. Please upload a file or check your example dataset path.")
     st.stop()
 
 df = preprocess(raw)
@@ -467,54 +368,37 @@ if len(df) < 50:
 
 st.sidebar.header("Filters")
 muni_options = sorted([m for m in df["Municipality"].dropna().unique() if m != "Unknown"])
-default_munis = muni_options if len(muni_options) <= 6 else muni_options[:6]
-picked_munis = st.sidebar.multiselect("Municipality", options=muni_options, default=default_munis)
+picked_munis = st.sidebar.multiselect("Municipality", options=muni_options, default=muni_options[:6] if len(muni_options) > 6 else muni_options)
 year_min, year_max = int(df["Year"].min()), int(df["Year"].max())
 picked_years = st.sidebar.slider("Year range", year_min, year_max, (year_min, year_max))
-sex_options = ["Male", "Female", "Unknown"]
-picked_sex = st.sidebar.multiselect("Sex", options=sex_options, default=["Male", "Female"])
+picked_sex = st.sidebar.multiselect("Sex", options=["Male", "Female", "Unknown"], default=["Male", "Female"])
 
 if not picked_munis or not picked_sex:
     st.warning("Select at least one municipality and one sex category.")
     st.stop()
 
 df_f = df[df["Municipality"].isin(picked_munis) & df["Year"].between(picked_years[0], picked_years[1]) & df["Sex"].isin(picked_sex)].copy()
-
 if len(df_f) < 30:
     st.warning("Too few records after applying filters.")
     st.stop()
 
 res = compute_all(df_f)
 
-tabs = st.tabs([
-    "Overview",
-    "Results by Age Group",
-    "Results by Sex",
-    "Case Classification",
-    "Results Across Time",
-    "Geographic Hotspots",
-    "Model Performance",
-    "Significant Factors",
-    "Forecast",
-    "Decision Support",
-])
+tabs = st.tabs(["Overview", "Results by Age Group", "Results by Sex", "Case Classification", "Results Across Time", "Geographic Hotspots", "Model Performance", "Significant Factors", "Forecast", "Decision Support"])
 
 with tabs[0]:
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(f'<div class="kpi"><p>Total cases</p><h2>{res["n_total"]:,}</h2></div>', unsafe_allow_html=True)
     c2.markdown(f'<div class="kpi"><p>Municipalities</p><h2>{df_f["Municipality"].nunique()}</h2></div>', unsafe_allow_html=True)
     c3.markdown(f'<div class="kpi"><p>Barangays</p><h2>{df_f["Barangay"].nunique()}</h2></div>', unsafe_allow_html=True)
-    severe_n = int((df_f["Severity"] == "High").sum())
-    c4.markdown(f'<div class="kpi"><p>Severe cases</p><h2>{severe_n:,}</h2></div>', unsafe_allow_html=True)
-
+    c4.markdown(f'<div class="kpi"><p>Severe cases</p><h2>{int((df_f["Severity"] == "High").sum()):,}</h2></div>', unsafe_allow_html=True)
     st.markdown("##### Clinical classification distribution")
     clin = res["clinical_counts"]
     if len(clin) > 0:
         col_a, col_b = st.columns([1, 1])
         with col_a:
             fig, ax = plt.subplots(figsize=(6, 4))
-            colors = ["#FFB300", "#FB8C00", "#C62828", "#3949AB", "#78909C"]
-            ax.pie(clin.values, labels=clin.index, autopct="%1.1f%%", colors=colors[:len(clin)], startangle=90)
+            ax.pie(clin.values, labels=clin.index, autopct="%1.1f%%", colors=["#FFB300", "#FB8C00", "#C62828", "#3949AB", "#78909C"][:len(clin)], startangle=90)
             ax.set_title("Clinical classification")
             st.pyplot(fig)
             plt.close()
@@ -522,7 +406,6 @@ with tabs[0]:
             table = clin.rename("Count").to_frame()
             table["Percent"] = res["clinical_pct"].values
             st.dataframe(table, use_container_width=True)
-
     st.markdown("##### Case classification distribution")
     case = res["case_counts"]
     if len(case) > 0:
@@ -532,7 +415,6 @@ with tabs[0]:
         ax.set_title("Case classification")
         st.pyplot(fig)
         plt.close()
-
     st.markdown("##### Outcome distribution")
     outcome_counts = df_f["Outcome"].value_counts()
     outcome_counts = outcome_counts[outcome_counts.index != "Unknown"]
@@ -547,8 +429,7 @@ with tabs[0]:
 
 with tabs[1]:
     age = res["age_counts"]
-    if len(age) == 0:
-        st.info("No age data available.")
+    if len(age) == 0: st.info("No age data available.")
     else:
         st.markdown("##### Cases by age group")
         table = age.rename("Cases").to_frame()
@@ -560,7 +441,6 @@ with tabs[1]:
         ax.set_title("Age group distribution")
         st.pyplot(fig)
         plt.close()
-
         crosstab = res["age_sex"]
         if crosstab.shape[1] > 0:
             st.markdown("##### Age group by sex")
@@ -572,20 +452,15 @@ with tabs[1]:
             ax.legend(title="Sex")
             st.pyplot(fig)
             plt.close()
-
         clin_ct = res["clin_age"]
         if clin_ct.shape[1] > 0:
             st.markdown("##### Age group by clinical classification")
             st.dataframe(clin_ct, use_container_width=True)
-
-        total = int(age.sum())
-        top_age = age.idxmax()
-        st.markdown(f'The largest age group is **{top_age}** with **{int(age.max()):,}** cases ({pct(age.max(), total):.1f}% of the filtered total).')
+        st.markdown(f'The largest age group is **{age.idxmax()}** with **{int(age.max()):,}** cases ({pct(age.max(), int(age.sum())):.1f}% of the filtered total).')
 
 with tabs[2]:
     sex = res["sex_counts"]
-    if len(sex) == 0:
-        st.info("No sex data available.")
+    if len(sex) == 0: st.info("No sex data available.")
     else:
         st.markdown("##### Cases by sex")
         table = sex.rename("Cases").to_frame()
@@ -597,20 +472,15 @@ with tabs[2]:
         ax.set_title("Sex distribution")
         st.pyplot(fig)
         plt.close()
-
         crosstab = res["age_sex"]
         if crosstab.shape[1] > 0:
             st.markdown("##### Sex by age group")
             st.dataframe(crosstab.T, use_container_width=True)
-
-        total = int(sex.sum())
-        top_sex = sex.idxmax()
-        st.markdown(f'**{top_sex}** accounts for **{int(sex.max()):,}** of {total:,} filtered cases ({pct(sex.max(), total):.1f}%).')
+        st.markdown(f'**{sex.idxmax()}** accounts for **{int(sex.max()):,}** of {int(sex.sum()):,} filtered cases ({pct(sex.max(), int(sex.sum())):.1f}%).')
 
 with tabs[3]:
     case = res["case_counts"]
-    if len(case) == 0:
-        st.info("No case classification data available.")
+    if len(case) == 0: st.info("No case classification data available.")
     else:
         st.markdown("##### Case classification counts")
         table = case.rename("Cases").to_frame()
@@ -622,7 +492,6 @@ with tabs[3]:
         ax.set_title("Case classification")
         st.pyplot(fig)
         plt.close()
-
         crosstab = res["case_age"]
         if crosstab.shape[1] > 0:
             st.markdown("##### Case classification by age group")
@@ -633,14 +502,11 @@ with tabs[3]:
             ax.set_title("Case classification by age group")
             st.pyplot(fig)
             plt.close()
-
-        severe_share = pct(int((df_f["Severity"] == "High").sum()), int(df_f["Severity"].isin(["High", "Medium", "Low"]).sum()))
-        st.markdown(f'Severe dengue represents **{severe_share:.1f}%** of cases with an assigned severity.')
+        st.markdown(f'Severe dengue represents **{pct(int((df_f["Severity"] == "High").sum()), int(df_f["Severity"].isin(["High", "Medium", "Low"]).sum())):.1f}%** of cases with an assigned severity.')
 
 with tabs[4]:
     yearly = res["yearly"]
-    if len(yearly) == 0:
-        st.info("No yearly data available.")
+    if len(yearly) == 0: st.info("No yearly data available.")
     else:
         st.markdown("##### Cases by year")
         st.dataframe(yearly.rename("Cases"), use_container_width=True)
@@ -651,7 +517,6 @@ with tabs[4]:
         ax.grid(alpha=0.3)
         st.pyplot(fig)
         plt.close()
-
     monthly = res["monthly"]
     if len(monthly) > 0:
         st.markdown("##### Monthly incidence")
@@ -662,7 +527,6 @@ with tabs[4]:
         ax.grid(alpha=0.3)
         st.pyplot(fig)
         plt.close()
-
     weekly = res["weekly"]
     if len(weekly) > 0:
         st.markdown("##### Weekly incidence")
@@ -673,27 +537,22 @@ with tabs[4]:
         ax.grid(alpha=0.3)
         st.pyplot(fig)
         plt.close()
-
     if len(monthly) > 0:
-        peak_month = monthly.idxmax()
-        st.markdown(f'Highest monthly count in the filtered range is **{int(monthly.max()):,}** cases, recorded in **{peak_month.strftime("%B %Y")}**.')
+        st.markdown(f'Highest monthly count in the filtered range is **{int(monthly.max()):,}** cases, recorded in **{monthly.idxmax().strftime("%B %Y")}**.')
 
 with tabs[5]:
     muni_counts = res["muni_counts"]
-    if len(muni_counts) == 0:
-        st.info("No municipality data available.")
+    if len(muni_counts) == 0: st.info("No municipality data available.")
     else:
         st.markdown("##### Municipality case counts")
         st.dataframe(muni_counts.rename("Cases"), use_container_width=True)
         fig, ax = plt.subplots(figsize=(9, max(3.5, len(muni_counts) * 0.3)))
         ordered = muni_counts.sort_values()
-        colors = plt.cm.YlOrRd(np.linspace(0.3, 1, len(ordered)))
-        ax.barh(ordered.index, ordered.values, color=colors, edgecolor="black")
+        ax.barh(ordered.index, ordered.values, color=plt.cm.YlOrRd(np.linspace(0.3, 1, len(ordered))), edgecolor="black")
         ax.set_xlabel("Cases")
         ax.set_title("Municipality ranking")
         st.pyplot(fig)
         plt.close()
-
     brgy_counts = res["brgy_counts"]
     if len(brgy_counts) > 0:
         st.markdown("##### Top 15 barangays")
@@ -705,7 +564,6 @@ with tabs[5]:
         ax.set_title("Barangay ranking")
         st.pyplot(fig)
         plt.close()
-
     cluster_summary = res["cluster_summary"]
     if cluster_summary is not None:
         st.markdown("##### Municipality clusters")
@@ -717,14 +575,12 @@ with tabs[5]:
         ax.set_title("Municipalities per cluster")
         st.pyplot(fig)
         plt.close()
-
         total = int(cluster_summary["Cases"].sum())
         top_muni = cluster_summary.index[0]
         st.markdown(f'The highest-burden municipality is **{top_muni}** with **{int(cluster_summary.loc[top_muni, "Cases"]):,}** cases ({pct(cluster_summary.loc[top_muni, "Cases"], total):.1f}% of the filtered total).')
 
 with tabs[6]:
-    if res["rf_case"] is None and res["rf_sev"] is None:
-        st.info("Random Forest could not be trained on the filtered dataset.")
+    if res["rf_case"] is None and res["rf_sev"] is None: st.info("Random Forest could not be trained on the filtered dataset.")
     else:
         if res["rf_case"] is not None:
             r = res["rf_case"]
@@ -735,27 +591,22 @@ with tabs[6]:
             c3.metric("Recall (macro)", f"{r['rec']:.3f}")
             c4.metric("F1 (macro)", f"{r['f1']:.3f}")
             st.caption(f"Trained on {r['n_train']:,} records from 2022 to 2024; tested on {r['n_test']:,} records from 2025 to 2026. Majority-class baseline accuracy: {r['baseline_acc']:.3f} (always predicting '{r['baseline_class']}'). Smallest class size: {r['min_class_count']}.")
-            cm_df = pd.DataFrame(r["cm"], index=[f"actual {x}" for x in r["labels"]], columns=[f"pred {x}" for x in r["labels"]])
-            st.dataframe(cm_df, use_container_width=True)
-
+            st.dataframe(pd.DataFrame(r["cm"], index=[f"actual {x}" for x in r["labels"]], columns=[f"pred {x}" for x in r["labels"]]), use_container_width=True)
         if res["rf_sev"] is not None:
             r = res["rf_sev"]
             st.markdown(f"##### Model: {r['target']}")
-            if r["min_class_count"] < CONFIG["min_minority_class"]:
-                st.warning(f"The smallest severity class has only {r['min_class_count']} records. Metrics below should be read as indicative only.")
+            if r["min_class_count"] < CONFIG["min_minority_class"]: st.warning(f"The smallest severity class has only {r['min_class_count']} records. Metrics below should be read as indicative only.")
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Accuracy", f"{r['acc']:.3f}")
             c2.metric("Precision (macro)", f"{r['prec']:.3f}")
             c3.metric("Recall (macro)", f"{r['rec']:.3f}")
             c4.metric("F1 (macro)", f"{r['f1']:.3f}")
             st.caption(f"Trained on {r['n_train']:,} records from 2022 to 2024; tested on {r['n_test']:,} records from 2025 to 2026. Majority-class baseline accuracy: {r['baseline_acc']:.3f} (always predicting '{r['baseline_class']}').")
-            cm_df = pd.DataFrame(r["cm"], index=[f"actual {x}" for x in r["labels"]], columns=[f"pred {x}" for x in r["labels"]])
-            st.dataframe(cm_df, use_container_width=True)
+            st.dataframe(pd.DataFrame(r["cm"], index=[f"actual {x}" for x in r["labels"]], columns=[f"pred {x}" for x in r["labels"]]), use_container_width=True)
 
 with tabs[7]:
     any_model = res["rf_case"] is not None or res["rf_sev"] is not None
-    if not any_model:
-        st.info("Feature importance requires a trained model.")
+    if not any_model: st.info("Feature importance requires a trained model.")
     else:
         model_choice = st.selectbox("Model", options=[x for x in ["Case Classification", "Severity"] if res["rf_case" if x == "Case Classification" else "rf_sev"] is not None])
         chosen = res["rf_case"] if model_choice == "Case Classification" else res["rf_sev"]
@@ -769,25 +620,18 @@ with tabs[7]:
         ax.set_title(f"Feature importance for {model_choice}")
         st.pyplot(fig)
         plt.close()
-        leading = top_fi.index[0]
-        st.markdown(f'The most influential feature for **{model_choice}** is **{leading}** (importance = {top_fi.iloc[0]:.3f}).')
+        st.markdown(f'The most influential feature for **{model_choice}** is **{top_fi.index[0]}** (importance = {top_fi.iloc[0]:.3f}).')
 
 with tabs[8]:
     fb = res["forecast"]
-    if fb is None:
-        st.info("Not enough monthly data to fit an ARIMA model on this filter.")
+    if fb is None: st.info("Not enough monthly data to fit an ARIMA model on this filter.")
     else:
         st.markdown("##### Monthly series and forecast")
         c1, c2, c3 = st.columns(3)
         c1.metric("ARIMA order", str(fb["order"]))
         c2.metric("AIC", f"{fb['aic']:.2f}")
         c3.metric("ADF p-value", f"{fb['adf_p']:.4f}")
-
-        if not np.isnan(fb["rmse"]):
-            st.metric("Test RMSE (2025 to 2026)", f"{fb['rmse']:.2f}")
-        else:
-            st.metric("Test RMSE (2025 to 2026)", "not available")
-
+        st.metric("Test RMSE (2025 to 2026)", f"{fb['rmse']:.2f}" if not np.isnan(fb["rmse"]) else "not available")
         fig, ax = plt.subplots(figsize=(12, 4.5))
         ax.plot(fb["actual"].index, fb["actual"].values, color="#1A237E", marker="o", markersize=3, label="Observed")
         if fb["test_forecast"] is not None and len(fb["test_series"]) > 0:
@@ -799,18 +643,13 @@ with tabs[8]:
         ax.grid(alpha=0.3)
         st.pyplot(fig)
         plt.close()
-
-        future_df = pd.DataFrame({
-            "Month": fb["future"].index.strftime("%Y-%m"),
-            "Forecast": np.maximum(fb["future"].values, 0).round(0).astype(int),
-        })
+        future_df = pd.DataFrame({"Month": fb["future"].index.strftime("%Y-%m"), "Forecast": np.maximum(fb["future"].values, 0).round(0).astype(int)})
         st.dataframe(future_df, use_container_width=True)
         st.download_button("Download forecast CSV", future_df.to_csv(index=False).encode("utf-8"), "forecast.csv", "text/csv")
 
 with tabs[9]:
     alerts_df = res["alerts"]
-    if alerts_df is None or len(alerts_df) == 0:
-        st.info("Not enough weekly history to compute early warning alerts.")
+    if alerts_df is None or len(alerts_df) == 0: st.info("Not enough weekly history to compute early warning alerts.")
     else:
         st.markdown("##### Threshold-based early warning status by municipality")
         level_colors = {"Critical": "alert-critical", "Warning": "alert-warning", "Watch": "alert-watch", "Normal": "alert-normal"}
@@ -822,21 +661,10 @@ with tabs[9]:
         c2.metric("Warning", int(counts.get("Warning", 0)))
         c3.metric("Watch", int(counts.get("Watch", 0)))
         c4.metric("Normal", int(counts.get("Normal", 0)))
-
         for _, row in alerts_sorted.iterrows():
-            css = level_colors[row["Alert_Level"]]
-            st.markdown(
-                f'<div class="alert {css}">'
-                f'<h5>{row["Alert_Level"]} - {row["Municipality"]}</h5>'
-                f'<p>Latest week {row["Latest_Week"]}: {row["Latest_Cases"]} cases. '
-                f'Baseline mean {row["Baseline_Mean"]}, warning {row["Warning_Threshold"]}, critical {row["Critical_Threshold"]}.</p>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-
+            st.markdown(f'<div class="alert {level_colors[row["Alert_Level"]]}"><h5>{row["Alert_Level"]} - {row["Municipality"]}</h5><p>Latest week {row["Latest_Week"]}: {row["Latest_Cases"]} cases. Baseline mean {row["Baseline_Mean"]}, warning {row["Warning_Threshold"]}, critical {row["Critical_Threshold"]}.</p></div>', unsafe_allow_html=True)
         st.markdown("##### Municipalities above warning threshold")
-        above = alerts_sorted[alerts_sorted["Alert_Level"].isin(["Critical", "Warning"])]
-        st.dataframe(above.reset_index(drop=True), use_container_width=True)
+        st.dataframe(alerts_sorted[alerts_sorted["Alert_Level"].isin(["Critical", "Warning"])].reset_index(drop=True), use_container_width=True)
         st.download_button("Download alerts CSV", alerts_sorted.to_csv(index=False).encode("utf-8"), "alerts.csv", "text/csv")
 
 st.markdown("---")
