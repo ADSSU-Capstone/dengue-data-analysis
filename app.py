@@ -302,10 +302,8 @@ def compute_all(df_filtered):
 
 st.set_page_config(page_title="Bantay Dengue Dashboard", layout="wide")
 
-# --- CUSTOM CSS FOR BOX TABS AND DENGUE THEME ---
 st.markdown("""
 <style>
-/* Main Title & Theme */
 html, body, [class*="css"] { font-family: 'Segoe UI', Arial, sans-serif; }
 .title-main { font-size: 1.9rem; font-weight: 700; color: #0D1B4C; text-align: center; padding: 0.4rem 0 0.2rem 0; }
 .title-sub { font-size: 0.95rem; color: #5A6472; text-align: center; margin-bottom: 1.4rem; }
@@ -322,47 +320,17 @@ html, body, [class*="css"] { font-family: 'Segoe UI', Arial, sans-serif; }
 .alert-normal   { border-color: #2E7D32; background: #F2FBF3; }
 .alert h5 { margin: 0 0 0.3rem 0; color: #0D1B4C; }
 .alert p { margin: 0; font-size: 0.85rem; color: #444; }
-
-/* Force Tabs into Boxes */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 12px !important;
-    padding-bottom: 15px !important;
-}
-.stTabs [data-baseweb="tab"] {
-    background-color: #FFFFFF !important;
-    border: 2px solid #1A237E !important;
-    border-radius: 8px !important;
-    padding: 8px 20px !important;
-    color: #1A237E !important;
-    font-weight: 600 !important;
-    box-shadow: 0px 2px 5px rgba(0,0,0,0.1) !important;
-    transition: all 0.2s ease-in-out !important;
-}
-.stTabs [data-baseweb="tab"]:hover {
-    background-color: #F2F7FF !important;
-}
-.stTabs [aria-selected="true"] {
-    background-color: #1A237E !important;
-    color: #FFFFFF !important;
-    border: 2px solid #1A237E !important;
-    box-shadow: 0px 4px 8px rgba(26, 35, 126, 0.4) !important;
-}
-/* Hide the default Streamlit underline and border */
-.stTabs [data-baseweb="tab-highlight"],
-.stTabs [data-baseweb="tab-border"] {
-    display: none !important;
-}
+.stTabs [data-baseweb="tab-list"] { gap: 12px !important; padding-bottom: 15px !important; }
+.stTabs [data-baseweb="tab"] { background-color: #FFFFFF !important; border: 2px solid #1A237E !important; border-radius: 8px !important; padding: 8px 20px !important; color: #1A237E !important; font-weight: 600 !important; box-shadow: 0px 2px 5px rgba(0,0,0,0.1) !important; transition: all 0.2s ease-in-out !important; }
+.stTabs [data-baseweb="tab"]:hover { background-color: #F2F7FF !important; }
+.stTabs [aria-selected="true"] { background-color: #1A237E !important; color: #FFFFFF !important; border: 2px solid #1A237E !important; box-shadow: 0px 4px 8px rgba(26, 35, 126, 0.4) !important; }
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
 st.sidebar.header("Upload & Options")
 uploaded_file = st.sidebar.file_uploader("Drag and drop file here", type=["csv", "xlsx"], help="Limit 200MB per file • CSV, XLSX")
 use_example = st.sidebar.checkbox("Use example dataset (if no upload)", value=False)
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("Imbalance & Balancing Defaults")
-st.sidebar.markdown("Default class balancing for the model:")
-smote_k = st.sidebar.number_input("Nearest-neighbors (SMOTE):", min_value=1, max_value=10, value=5)
 st.sidebar.markdown("---")
 
 st.markdown('<div class="title-main">BANTAY DENGUE DASHBOARD</div>', unsafe_allow_html=True)
