@@ -320,9 +320,32 @@ html, body, [class*="css"] { font-family: 'Segoe UI', Arial, sans-serif; }
 .alert-normal   { border-color: #2E7D32; background: #F2FBF3; }
 .alert h5 { margin: 0 0 0.3rem 0; color: #0D1B4C; }
 .alert p { margin: 0; font-size: 0.85rem; color: #444; }
-.stTabs [data-baseweb="tab-list"] { gap: 6px; }
-.stTabs [data-baseweb="tab"] { background-color: #ECEFF4; border-radius: 6px 6px 0 0; padding: 8px 16px; font-weight: 600; color: #1A237E; }
-.stTabs [aria-selected="true"] { background-color: #1A237E !important; color: #FFD54F !important; }
+
+/* CUSTOM BOX TAB STYLING */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-bottom: 15px;
+}
+.stTabs [data-baseweb="tab"] {
+    background-color: #FFFFFF;
+    border: 2px solid #1A237E;
+    border-radius: 8px;
+    padding: 10px 18px;
+    color: #1A237E;
+    font-weight: 600;
+}
+.stTabs [aria-selected="true"] {
+    background-color: #1A237E !important;
+    color: #FFFFFF !important;
+    border: 2px solid #1A237E !important;
+}
+.stTabs [data-baseweb="tab-highlight"] {
+    display: none;
+}
+.stTabs [data-baseweb="tab-border"] {
+    display: none;
+}
 </style>
 """, unsafe_allow_html=True)
 
