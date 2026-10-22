@@ -29,6 +29,11 @@ CONFIG = {
     "k_clusters": 4,
     "rf_estimators": 200,
     "random_state": 42,
+    "valid_municipalities": [
+        "Bunawan", "Bayugan", "Esperanza", "La Paz", "Loreto", 
+        "Prosperidad", "Rosario", "San Francisco", "San Luis", 
+        "Santa Josefa", "Sibagat", "Talacogon", "Trento", "Veruela"
+    ]
 }
 
 NULL_TOKENS = {"", "nan", "none", "n/a", "na", "null", "-", "--", ".", "?", "undefined", "#n/a", "#value!", "not applicable", "notavailable"}
@@ -334,7 +339,7 @@ use_example = st.sidebar.checkbox("Use example dataset (if no upload)", value=Fa
 st.sidebar.markdown("---")
 
 st.markdown('<div class="title-main">BANTAY DENGUE DASHBOARD</div>', unsafe_allow_html=True)
-st.markdown('<div class="title-sub">Upload a CSV/Excel file — explore data cleaning, EDA, clustering, prediction, and forecasting. Toggle balancing options in the sidebar.</div>', unsafe_allow_html=True)
+st.markdown('<div class="title-sub">Upload a CSV/Excel file — explore data cleaning, EDA, clustering, prediction, and forecasting.</div>', unsafe_allow_html=True)
 
 if uploaded_file is None and not use_example:
     st.info("Please upload a CSV/Excel to begin, or toggle 'Use example dataset' in the sidebar.")
@@ -359,8 +364,13 @@ if raw is None:
     st.stop()
 
 df = preprocess(raw)
+
+# Strict Geographic Filter: Remove invalid municipalities like "City Of Bayugan"
+valid_lower = [m.lower() for m in CONFIG["valid_municipalities"]]
+df = df[df["Municipality"].str.lower().isin(valid_lower)]
+
 if len(df) < 50:
-    st.error("The dataset has too few usable records after cleaning.")
+    st.error("The dataset has too few usable records after cleaning (or contains no valid Agusan del Sur municipalities).")
     st.stop()
 
 st.sidebar.header("Filters")
