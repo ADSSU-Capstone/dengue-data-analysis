@@ -30,7 +30,7 @@ CONFIG = {
     "rf_estimators": 200,
     "random_state": 42,
     "valid_municipalities": [
-        "Bunawan", "Bayugan", "Esperanza", "La Paz", "Loreto", 
+        "Bunawan", "Bayugan", "City Of Bayugan", "Esperanza", "La Paz", "Loreto", 
         "Prosperidad", "Rosario", "San Francisco", "San Luis", 
         "Santa Josefa", "Sibagat", "Talacogon", "Trento", "Veruela"
     ]
@@ -365,7 +365,7 @@ if raw is None:
 
 df = preprocess(raw)
 
-# Strict Geographic Filter: Remove invalid municipalities like "City Of Bayugan"
+# Strict Geographic Filter: Remove invalid municipalities
 valid_lower = [m.lower() for m in CONFIG["valid_municipalities"]]
 df = df[df["Municipality"].str.lower().isin(valid_lower)]
 
