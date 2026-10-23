@@ -66,8 +66,8 @@ def normalize_clinical(value):
     if pd.isna(s): return "Unknown"
     s = s.lower()
     if "severe" in s: return "Severe Dengue"
-    if "warning" in s: return "Dengue With Warning Signs"
     if "without" in s: return "Dengue Without Warning Signs"
+    if "warning" in s: return "Dengue With Warning Signs"
     if "dengue" in s: return "Dengue (Unspecified)"
     return "Unknown"
 
@@ -339,7 +339,7 @@ use_example = st.sidebar.checkbox("Use example dataset (if no upload)", value=Fa
 st.sidebar.markdown("---")
 
 st.markdown('<div class="title-main">BANTAY DENGUE DASHBOARD</div>', unsafe_allow_html=True)
-st.markdown('<div class="title-sub">Upload a CSV/Excel file — explore data cleaning, EDA, clustering, prediction, and forecasting.</div>', unsafe_allow_html=True)
+st.markdown('<div class="title-sub">Upload a CSV/Excel file to explore data cleaning, EDA, clustering, prediction, and forecasting.</div>', unsafe_allow_html=True)
 
 if uploaded_file is None and not use_example:
     st.info("Please upload a CSV/Excel to begin, or toggle 'Use example dataset' in the sidebar.")
@@ -364,8 +364,6 @@ if raw is None:
     st.stop()
 
 df = preprocess(raw)
-
-# Strict Geographic Filter: Remove invalid municipalities
 valid_lower = [m.lower() for m in CONFIG["valid_municipalities"]]
 df = df[df["Municipality"].str.lower().isin(valid_lower)]
 
