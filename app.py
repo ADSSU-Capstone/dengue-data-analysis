@@ -554,10 +554,11 @@ with tabs[5]:
     else:
         st.markdown("##### Spatial Distribution of Dengue Cases per Municipality")
         
-        geojson_url = "https://raw.githubusercontent.com/faeldon/philippines-json-maps/master/2023/geojson/municities/lowres/municities.json"
+        geojson_url = "https://raw.githubusercontent.com/altcoder/philippines-json-maps/main/2023/geojson/municities-lowres/municities.json"
         
         try:
-            with urllib.request.urlopen(geojson_url) as response:
+            req = urllib.request.Request(geojson_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=15) as response:
                 ph_geojson = json.load(response)
             
             map_df = muni_counts.reset_index()
@@ -598,7 +599,7 @@ with tabs[5]:
                 st.caption("Note: Map boundaries are approximated based on available public GeoJSON data.")
                 
         except Exception as e:
-            st.warning(f"Map visualization could not be loaded. Error: {e}")
+            st.error(f"Map visualization could not be loaded. Error: {e}")
             st.info("Tip: If the URL is broken, download the GeoJSON manually and host it in your GitHub repo.")
 
         st.markdown("##### Municipality case counts")
