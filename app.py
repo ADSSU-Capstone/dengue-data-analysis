@@ -554,7 +554,7 @@ with tabs[5]:
     else:
         st.markdown("##### Spatial Distribution of Dengue Cases per Municipality")
         
-        geojson_url = "https://raw.githubusercontent.com/reynaheleyna/ph-geocodes/master/PH.citymuni.geojson"
+        geojson_url = "https://raw.githubusercontent.com/faeldon/philippines-json-maps/master/2023/geojson/municities/lowres/municities.json"
         
         try:
             with urllib.request.urlopen(geojson_url) as response:
@@ -563,38 +563,42 @@ with tabs[5]:
             map_df = muni_counts.reset_index()
             map_df.columns = ["Municipality", "Cases"]
             
-            map_df["Match_Name"] = map_df["Municipality"]
-            map_df.loc[map_df["Match_Name"].str.contains("Bayugan", case=False, na=False), "Match_Name"] = "Bayugan City"
+            map_df["Match_Name"] = map_df["Municipality"].str.upper().str.strip()
             
-            possible_keys = ['NAME_3', 'ADM3_EN', 'MUNICIPALITY', 'NAME_2']
-            key_name = None
+            map_df["Match_Name"] = map_df["Match_Name"].replace({
+                "CITY OF BAYUGAN": "BAYUGAN",
+                "BAYUGAN CITY": "BAYUGAN",
+                "LA PAZ": "LA PAZ",
+                "SAN FRANCISCO": "SAN FRANCISCO"
+            })
+            
             first_props = ph_geojson['features'][0]['properties']
-            for k in possible_keys:
+            key_name = None
+            for k in ['NAME_2', 'NAME_3', 'ADM3_EN', 'MUNICIPALITY', 'name']:
                 if k in first_props:
                     key_name = k
                     break
             
             if key_name is None:
-                st.error(f"Could not find municipality name key in map data.")
-                st.stop()
-            
-            fig_map = px.choropleth(
-                map_df,
-                geojson=ph_geojson,
-                locations="Match_Name",
-                featureidkey=f"properties.{key_name}",
-                color="Cases",
-                hover_name="Municipality",
-                color_continuous_scale="Reds", 
-                title="Dengue Hotspots in Agusan del Sur"
-            )
-            
-            fig_map.update_geos(fitbounds="locations", visible=False)
-            fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
-            
-            st.plotly_chart(fig_map, use_container_width=True)
-            st.caption("Note: Map boundaries are approximated based on available public GeoJSON data.")
-            
+                st.error(f"Could not detect map key. Available keys: {list(first_props.keys())}")
+            else:
+                fig_map = px.choropleth(
+                    map_df,
+                    geojson=ph_geojson,
+                    locations="Match_Name",
+                    featureidkey=f"properties.{key_name}",
+                    color="Cases",
+                    hover_name="Municipality",
+                    color_continuous_scale="Reds", 
+                    title="Dengue Hotspots in Agusan del Sur"
+                )
+                
+                fig_map.update_geos(fitbounds="locations", visible=False)
+                fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
+                
+                st.plotly_chart(fig_map, use_container_width=True)
+                st.caption("Note: Map boundaries are approximated based on available public GeoJSON data.")
+                
         except Exception as e:
             st.warning(f"Map visualization could not be loaded. Error: {e}")
 
