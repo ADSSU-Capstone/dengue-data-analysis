@@ -547,7 +547,9 @@ with tabs[4]:
         st.pyplot(fig)
         plt.close()
     if len(monthly) > 0:
-        st.markdown(f'Highest monthly count in the filtered range is **{int(monthly.max()):,}** cases, recorded in **{monthly.idxmonth().strftime("%B %Y")}**.')
+        peak_month = monthly.idxmax()
+        peak_date_str = peak_month.strftime("%B %Y") if hasattr(peak_month, 'strftime') else str(peak_month)
+        st.markdown(f'Highest monthly count in the filtered range is **{int(monthly.max()):,}** cases, recorded in **{peak_date_str}**.')
 
 with tabs[5]:
     muni_counts = res["muni_counts"]
@@ -592,7 +594,6 @@ with tabs[5]:
                     title="Dengue Hotspots in Agusan del Sur"
                 )
                 
-                # Use a reliable dictionary of coordinates for Agusan del Sur labels
                 muni_centers = {
                     "Bunawan": (8.18, 125.99), "Bayugan": (8.71, 125.74), 
                     "City Of Bayugan": (8.71, 125.74), "Esperanza": (8.67, 125.64), 
