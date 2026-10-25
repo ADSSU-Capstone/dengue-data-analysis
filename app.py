@@ -577,7 +577,7 @@ with tabs[5]:
         if map_data:
             map_df = pd.DataFrame(map_data)
             
-            fig_map = px.scatter_mapbox(
+            fig_map = px.scatter_map(
                 map_df,
                 lat="lat",
                 lon="lon",
@@ -590,7 +590,7 @@ with tabs[5]:
                 zoom=8,
                 center={"lat": 8.5, "lon": 125.9},
                 title="Dengue Hotspots in Agusan del Sur",
-                mapbox_style="open-street-map"
+                map_style="open-street-map"
             )
             
             fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
