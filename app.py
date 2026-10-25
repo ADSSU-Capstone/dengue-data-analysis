@@ -3,6 +3,7 @@ import re
 import glob
 import warnings
 import json
+import urllib.request
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -553,9 +554,11 @@ with tabs[5]:
     else:
         st.markdown("##### Spatial Distribution of Dengue Cases per Municipality")
         
+        geojson_url = "https://raw.githubusercontent.com/faeldon/philippines-json-maps/master/2023/geojson/municities/lowres/municities.json"
+        
         try:
-            with open("ph_municipalities.json", "r", encoding="utf-8") as f:
-                ph_geojson = json.load(f)
+            with urllib.request.urlopen(geojson_url) as response:
+                ph_geojson = json.load(response)
             
             map_df = muni_counts.reset_index()
             map_df.columns = ["Municipality", "Cases"]
@@ -594,10 +597,9 @@ with tabs[5]:
                 st.plotly_chart(fig_map, use_container_width=True)
                 st.caption("Note: Map boundaries are approximated based on available public GeoJSON data.")
                 
-        except FileNotFoundError:
-            st.error("Map file 'ph_municipalities.json' not found. Please upload it to your GitHub repository.")
         except Exception as e:
             st.warning(f"Map visualization could not be loaded. Error: {e}")
+            st.info("Tip: If the URL is broken, download the GeoJSON manually and host it in your GitHub repo.")
 
         st.markdown("##### Municipality case counts")
         st.dataframe(muni_counts.rename("Cases"), use_container_width=True)
