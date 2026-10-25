@@ -547,7 +547,7 @@ with tabs[4]:
         st.pyplot(fig)
         plt.close()
     if len(monthly) > 0:
-        st.markdown(f'Highest monthly count in the filtered range is **{int(monthly.max()):,}** cases, recorded in **{monthly.idxmax().strftime("%B %Y")}**.')
+        st.markdown(f'Highest monthly count in the filtered range is **{int(monthly.max()):,}** cases, recorded in **{monthly.idxmonth().strftime("%B %Y")}**.')
 
 with tabs[5]:
     muni_counts = res["muni_counts"]
@@ -555,11 +555,11 @@ with tabs[5]:
     else:
         st.markdown("##### Spatial Distribution of Dengue Cases per Municipality")
         
-        geojson_url = "https://services1.arcgis.com/eGSDp8lpKe5izqVc/ArcGIS/rest/services/Coastal_Jurisdictions_in_the_Philippines_WFL1/FeatureServer/1/query?where=1%3D1&outFields=*&outSR=4326&f=geojson"
+        geojson_url = "https://raw.githubusercontent.com/reynaheleyna/ph-geocodes/master/PH.citymuni.geojson"
         
         try:
             req = urllib.request.Request(geojson_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=25) as response:
+            with urllib.request.urlopen(req, timeout=15) as response:
                 ph_geojson = json.load(response)
             
             map_df = muni_counts.reset_index()
@@ -572,62 +572,58 @@ with tabs[5]:
             })
             
             first_props = ph_geojson['features'][0]['properties']
-            key_name = 'MUNICIPALI' if 'MUNICIPALI' in first_props else 'NAME'
+            key_name = None
+            for k in ['MUNICIPALI', 'ADM3_EN', 'NAME_3', 'MUNICIPALITY', 'NAME_2', 'NAME']:
+                if k in first_props:
+                    key_name = k
+                    break
             
-            valid_names = map_df["Match_Name"].tolist()
-            filtered_features = []
-            
-            for feature in ph_geojson['features']:
-                name = str(feature['properties'].get(key_name, '')).upper().strip()
-                if name in valid_names:
-                    filtered_features.append(feature)
-            
-            ads_geojson = {"type": "FeatureCollection", "features": filtered_features}
-            
-            fig_map = px.choropleth(
-                map_df,
-                geojson=ads_geojson,
-                locations="Match_Name",
-                featureidkey=f"properties.{key_name}",
-                color="Cases",
-                hover_name="Municipality",
-                color_continuous_scale="Reds", 
-                title="Dengue Hotspots in Agusan del Sur"
-            )
-            
-            labels = []
-            for feature in ads_geojson['features']:
-                name = feature['properties'].get(key_name, '')
-                geom = feature['geometry']
-                try:
-                    if geom['type'] == 'Polygon':
-                        coords = geom['coordinates'][0]
-                    elif geom['type'] == 'MultiPolygon':
-                        coords = geom['coordinates'][0][0]
-                    else:
-                        continue
-                    lon = sum(p[0] for p in coords) / len(coords)
-                    lat = sum(p[1] for p in coords) / len(coords)
-                    labels.append({"Municipality": name, "lat": lat, "lon": lon})
-                except Exception:
-                    pass
-            
-            if labels:
-                label_df = pd.DataFrame(labels)
+            if key_name is None:
+                st.error(f"Could not detect map key. Available keys: {list(first_props.keys())}")
+            else:
+                fig_map = px.choropleth(
+                    map_df,
+                    geojson=ph_geojson,
+                    locations="Match_Name",
+                    featureidkey=f"properties.{key_name}",
+                    color="Cases",
+                    hover_name="Municipality",
+                    color_continuous_scale="Reds", 
+                    title="Dengue Hotspots in Agusan del Sur"
+                )
+                
+                # Use a reliable dictionary of coordinates for Agusan del Sur labels
+                muni_centers = {
+                    "Bunawan": (8.18, 125.99), "Bayugan": (8.71, 125.74), 
+                    "City Of Bayugan": (8.71, 125.74), "Esperanza": (8.67, 125.64), 
+                    "La Paz": (8.27, 125.80), "Loreto": (8.18, 125.85), 
+                    "Prosperidad": (8.60, 125.91), "Rosario": (8.38, 126.00), 
+                    "San Francisco": (8.50, 125.97), "San Luis": (8.47, 125.96), 
+                    "Santa Josefa": (7.98, 126.03), "Sibagat": (8.82, 125.69), 
+                    "Talacogon": (8.45, 125.78), "Trento": (8.04, 126.06), 
+                    "Veruela": (8.06, 125.95)
+                }
+                
+                label_df = pd.DataFrame([
+                    {"Municipality": m, "lat": lat, "lon": lon} for m, (lat, lon) in muni_centers.items()
+                ])
+                label_df["Match_Name"] = label_df["Municipality"].str.upper().str.strip()
+                label_df = label_df[label_df["Match_Name"].isin(map_df["Match_Name"])]
+                
                 fig_map.add_trace(go.Scattergeo(
                     lon=label_df["lon"],
                     lat=label_df["lat"],
                     text=label_df["Municipality"],
                     mode='text',
-                    textfont=dict(size=9, color="black", family="Arial Black"),
+                    textfont=dict(size=10, color="black", family="Arial Black"),
                     showlegend=False
                 ))
-            
-            fig_map.update_geos(fitbounds="geojson", visible=False)
-            fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
-            
-            st.plotly_chart(fig_map, use_container_width=True)
-            st.caption("Note: Map boundaries are sourced from a public GeoJSON of Philippine municipalities.")
+                
+                fig_map.update_geos(fitbounds="locations", visible=False)
+                fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
+                
+                st.plotly_chart(fig_map, use_container_width=True)
+                st.caption("Note: Map boundaries are sourced from a public GeoJSON of Philippine municipalities.")
                 
         except Exception as e:
             st.error(f"Map visualization could not be loaded. Error: {e}")
