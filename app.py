@@ -2,12 +2,15 @@ import os
 import re
 import glob
 import warnings
+import json
+import urllib.request
 import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import plotly.express as px
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
@@ -549,6 +552,39 @@ with tabs[5]:
     muni_counts = res["muni_counts"]
     if len(muni_counts) == 0: st.info("No municipality data available.")
     else:
+        st.markdown("##### Spatial Distribution of Dengue Cases per Municipality")
+        
+        geojson_url = "https://raw.githubusercontent.com/reynaheleyna/ph-geocodes/master/PH.citymuni.geojson"
+        
+        try:
+            with urllib.request.urlopen(geojson_url) as response:
+                ph_geojson = json.load(response)
+            
+            map_df = muni_counts.reset_index()
+            map_df.columns = ["Municipality", "Cases"]
+            
+            map_df["Match_Name"] = map_df["Municipality"].str.replace("City Of", "City of", regex=False)
+            
+            fig_map = px.choropleth(
+                map_df,
+                geojson=ph_geojson,
+                locations="Match_Name",
+                featureidkey="properties.NAME_2",
+                color="Cases",
+                hover_name="Municipality",
+                color_continuous_scale="Reds", 
+                title="Dengue Hotspots in Agusan del Sur"
+            )
+            
+            fig_map.update_geos(fitbounds="locations", visible=False)
+            fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
+            
+            st.plotly_chart(fig_map, use_container_width=True)
+            st.caption("Note: Map boundaries are approximated based on available public GeoJSON data.")
+            
+        except Exception as e:
+            st.warning(f"Map visualization could not be loaded. Error: {e}")
+
         st.markdown("##### Municipality case counts")
         st.dataframe(muni_counts.rename("Cases"), use_container_width=True)
         fig, ax = plt.subplots(figsize=(9, max(3.5, len(muni_counts) * 0.3)))
