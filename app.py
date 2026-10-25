@@ -563,13 +563,26 @@ with tabs[5]:
             map_df = muni_counts.reset_index()
             map_df.columns = ["Municipality", "Cases"]
             
-            map_df["Match_Name"] = map_df["Municipality"].str.replace("City Of", "City of", regex=False)
+            map_df["Match_Name"] = map_df["Municipality"]
+            map_df.loc[map_df["Match_Name"].str.contains("Bayugan", case=False, na=False), "Match_Name"] = "Bayugan City"
+            
+            possible_keys = ['NAME_3', 'ADM3_EN', 'MUNICIPALITY', 'NAME_2']
+            key_name = None
+            first_props = ph_geojson['features'][0]['properties']
+            for k in possible_keys:
+                if k in first_props:
+                    key_name = k
+                    break
+            
+            if key_name is None:
+                st.error(f"Could not find municipality name key in map data.")
+                st.stop()
             
             fig_map = px.choropleth(
                 map_df,
                 geojson=ph_geojson,
                 locations="Match_Name",
-                featureidkey="properties.NAME_2",
+                featureidkey=f"properties.{key_name}",
                 color="Cases",
                 hover_name="Municipality",
                 color_continuous_scale="Reds", 
