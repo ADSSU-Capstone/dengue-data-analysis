@@ -554,7 +554,6 @@ with tabs[5]:
     else:
         st.markdown("##### Spatial Distribution of Dengue Cases per Municipality")
         
-        # Direct raw URL to a single-file GeoJSON of Philippine municipalities
         geojson_url = "https://raw.githubusercontent.com/reynaheleyna/ph-geocodes/master/PH.citymuni.geojson"
         
         try:
@@ -577,7 +576,8 @@ with tabs[5]:
             # Detect the correct key for municipality names in this specific file
             first_props = ph_geojson['features'][0]['properties']
             key_name = None
-            for k in ['ADM3_EN', 'NAME_3', 'MUNICIPALITY', 'NAME_2', 'NAME']:
+            # Added 'MUNICIPALI' based on the error message in the screenshot
+            for k in ['MUNICIPALI', 'ADM3_EN', 'NAME_3', 'MUNICIPALITY', 'NAME_2', 'NAME']:
                 if k in first_props:
                     key_name = k
                     break
@@ -607,7 +607,10 @@ with tabs[5]:
             st.info("Tip: If the URL is broken, download the GeoJSON manually and host it in your GitHub repo.")
 
         st.markdown("##### Municipality case counts")
-        st.dataframe(muni_counts.rename("Cases"), use_container_width=True)
+        table_df = muni_counts.reset_index()
+        table_df.columns = ["Municipality", "Cases"]
+        st.dataframe(table_df, use_container_width=True, hide_index=True)
+        
         fig, ax = plt.subplots(figsize=(9, max(3.5, len(muni_counts) * 0.3)))
         ordered = muni_counts.sort_values()
         ax.barh(ordered.index, ordered.values, color=plt.cm.YlOrRd(np.linspace(0.3, 1, len(ordered))), edgecolor="black")
