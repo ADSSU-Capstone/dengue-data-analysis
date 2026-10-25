@@ -557,77 +557,48 @@ with tabs[5]:
     else:
         st.markdown("##### Spatial Distribution of Dengue Cases per Municipality")
         
-        geojson_url = "https://raw.githubusercontent.com/reynaheleyna/ph-geocodes/master/PH.citymuni.geojson"
+        muni_centers = {
+            "Bunawan": (8.18, 125.99), "Bayugan": (8.71, 125.74), 
+            "City Of Bayugan": (8.71, 125.74), "Esperanza": (8.67, 125.64), 
+            "La Paz": (8.27, 125.80), "Loreto": (8.18, 125.85), 
+            "Prosperidad": (8.60, 125.91), "Rosario": (8.38, 126.00), 
+            "San Francisco": (8.50, 125.97), "San Luis": (8.47, 125.96), 
+            "Santa Josefa": (7.98, 126.03), "Sibagat": (8.82, 125.69), 
+            "Talacogon": (8.45, 125.78), "Trento": (8.04, 126.06), 
+            "Veruela": (8.06, 125.95)
+        }
         
-        try:
-            req = urllib.request.Request(geojson_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=15) as response:
-                ph_geojson = json.load(response)
+        map_data = []
+        for muni, cases in muni_counts.items():
+            if muni in muni_centers:
+                lat, lon = muni_centers[muni]
+                map_data.append({"Municipality": muni, "Cases": cases, "lat": lat, "lon": lon})
+        
+        if map_data:
+            map_df = pd.DataFrame(map_data)
             
-            map_df = muni_counts.reset_index()
-            map_df.columns = ["Municipality", "Cases"]
+            fig_map = px.scatter_mapbox(
+                map_df,
+                lat="lat",
+                lon="lon",
+                hover_name="Municipality",
+                hover_data={"lat": False, "lon": False},
+                size="Cases",
+                color="Cases",
+                color_continuous_scale="Reds",
+                size_max=40,
+                zoom=8,
+                center={"lat": 8.5, "lon": 125.9},
+                title="Dengue Hotspots in Agusan del Sur",
+                mapbox_style="open-street-map"
+            )
             
-            map_df["Match_Name"] = map_df["Municipality"].str.upper().str.strip()
-            map_df["Match_Name"] = map_df["Match_Name"].replace({
-                "CITY OF BAYUGAN": "BAYUGAN",
-                "BAYUGAN CITY": "BAYUGAN"
-            })
+            fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
             
-            first_props = ph_geojson['features'][0]['properties']
-            key_name = None
-            for k in ['MUNICIPALI', 'ADM3_EN', 'NAME_3', 'MUNICIPALITY', 'NAME_2', 'NAME']:
-                if k in first_props:
-                    key_name = k
-                    break
-            
-            if key_name is None:
-                st.error(f"Could not detect map key. Available keys: {list(first_props.keys())}")
-            else:
-                fig_map = px.choropleth(
-                    map_df,
-                    geojson=ph_geojson,
-                    locations="Match_Name",
-                    featureidkey=f"properties.{key_name}",
-                    color="Cases",
-                    hover_name="Municipality",
-                    color_continuous_scale="Reds", 
-                    title="Dengue Hotspots in Agusan del Sur"
-                )
-                
-                muni_centers = {
-                    "Bunawan": (8.18, 125.99), "Bayugan": (8.71, 125.74), 
-                    "City Of Bayugan": (8.71, 125.74), "Esperanza": (8.67, 125.64), 
-                    "La Paz": (8.27, 125.80), "Loreto": (8.18, 125.85), 
-                    "Prosperidad": (8.60, 125.91), "Rosario": (8.38, 126.00), 
-                    "San Francisco": (8.50, 125.97), "San Luis": (8.47, 125.96), 
-                    "Santa Josefa": (7.98, 126.03), "Sibagat": (8.82, 125.69), 
-                    "Talacogon": (8.45, 125.78), "Trento": (8.04, 126.06), 
-                    "Veruela": (8.06, 125.95)
-                }
-                
-                label_df = pd.DataFrame([
-                    {"Municipality": m, "lat": lat, "lon": lon} for m, (lat, lon) in muni_centers.items()
-                ])
-                label_df["Match_Name"] = label_df["Municipality"].str.upper().str.strip()
-                label_df = label_df[label_df["Match_Name"].isin(map_df["Match_Name"])]
-                
-                fig_map.add_trace(go.Scattergeo(
-                    lon=label_df["lon"],
-                    lat=label_df["lat"],
-                    text=label_df["Municipality"],
-                    mode='text',
-                    textfont=dict(size=10, color="black", family="Arial Black"),
-                    showlegend=False
-                ))
-                
-                fig_map.update_geos(fitbounds="locations", visible=False)
-                fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
-                
-                st.plotly_chart(fig_map, use_container_width=True)
-                st.caption("Note: Map boundaries are sourced from a public GeoJSON of Philippine municipalities.")
-                
-        except Exception as e:
-            st.error(f"Map visualization could not be loaded. Error: {e}")
+            st.plotly_chart(fig_map, use_container_width=True)
+            st.caption("Note: Map markers are centered on municipal coordinates.")
+        else:
+            st.warning("No valid coordinate data found for the filtered municipalities.")
 
         st.markdown("##### Municipality case counts")
         table_df = muni_counts.reset_index()
