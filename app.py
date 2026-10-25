@@ -11,6 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
@@ -564,19 +565,14 @@ with tabs[5]:
             map_df = muni_counts.reset_index()
             map_df.columns = ["Municipality", "Cases"]
             
-            # Standardize names to match the GeoJSON format (UPPERCASE)
             map_df["Match_Name"] = map_df["Municipality"].str.upper().str.strip()
-            
-            # Handle specific mismatches (e.g., City Of Bayugan vs BAYUGAN)
             map_df["Match_Name"] = map_df["Match_Name"].replace({
                 "CITY OF BAYUGAN": "BAYUGAN",
                 "BAYUGAN CITY": "BAYUGAN"
             })
             
-            # Detect the correct key for municipality names in this specific file
             first_props = ph_geojson['features'][0]['properties']
             key_name = None
-            # Added 'MUNICIPALI' based on the error message in the screenshot
             for k in ['MUNICIPALI', 'ADM3_EN', 'NAME_3', 'MUNICIPALITY', 'NAME_2', 'NAME']:
                 if k in first_props:
                     key_name = k
@@ -596,7 +592,37 @@ with tabs[5]:
                     title="Dengue Hotspots in Agusan del Sur"
                 )
                 
-                fig_map.update_geos(fitbounds="locations", visible=False)
+                muni_centers = {
+                    "Bunawan": (8.18, 125.99), "Bayugan": (8.71, 125.74), 
+                    "City Of Bayugan": (8.71, 125.74), "Esperanza": (8.67, 125.64), 
+                    "La Paz": (8.27, 125.80), "Loreto": (8.18, 125.85), 
+                    "Prosperidad": (8.60, 125.91), "Rosario": (8.38, 126.00), 
+                    "San Francisco": (8.50, 125.97), "San Luis": (8.47, 125.96), 
+                    "Santa Josefa": (7.98, 126.03), "Sibagat": (8.82, 125.69), 
+                    "Talacogon": (8.45, 125.78), "Trento": (8.04, 126.06), 
+                    "Veruela": (8.06, 125.95)
+                }
+                
+                label_df = pd.DataFrame([
+                    {"Municipality": m, "lat": lat, "lon": lon} for m, (lat, lon) in muni_centers.items()
+                ])
+                label_df["Match_Name"] = label_df["Municipality"].str.upper().str.strip()
+                label_df = label_df[label_df["Match_Name"].isin(map_df["Match_Name"])]
+                
+                fig_map.add_trace(go.Scattergeo(
+                    lon=label_df["lon"],
+                    lat=label_df["lat"],
+                    text=label_df["Municipality"],
+                    mode='text',
+                    textfont=dict(size=10, color="black", family="Arial Black"),
+                    showlegend=False
+                ))
+                
+                fig_map.update_geos(
+                    visible=False,
+                    center=dict(lat=8.5, lon=125.9),
+                    projection_scale=7
+                )
                 fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=600)
                 
                 st.plotly_chart(fig_map, use_container_width=True)
@@ -604,7 +630,6 @@ with tabs[5]:
                 
         except Exception as e:
             st.error(f"Map visualization could not be loaded. Error: {e}")
-            st.info("Tip: If the URL is broken, download the GeoJSON manually and host it in your GitHub repo.")
 
         st.markdown("##### Municipality case counts")
         table_df = muni_counts.reset_index()
