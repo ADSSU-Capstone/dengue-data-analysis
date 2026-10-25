@@ -554,8 +554,7 @@ with tabs[5]:
     else:
         st.markdown("##### Spatial Distribution of Dengue Cases per Municipality")
         
-        # Use the stable altcoder repository
-        geojson_url = "https://raw.githubusercontent.com/altcoder/philippines-json-maps/main/2023/geojson/municities-lowres/municities.json"
+        geojson_url = "https://raw.githubusercontent.com/faeldon/philippines-json-maps/master/2019/geojson/municities/lowres/municities.json"
         
         try:
             with urllib.request.urlopen(geojson_url) as response:
@@ -564,19 +563,18 @@ with tabs[5]:
             map_df = muni_counts.reset_index()
             map_df.columns = ["Municipality", "Cases"]
             
-            # Standardize names to match the GeoJSON format (UPPERCASE)
             map_df["Match_Name"] = map_df["Municipality"].str.upper().str.strip()
             
-            # Handle specific mismatches (e.g., City Of Bayugan vs BAYUGAN)
             map_df["Match_Name"] = map_df["Match_Name"].replace({
                 "CITY OF BAYUGAN": "BAYUGAN",
-                "BAYUGAN CITY": "BAYUGAN"
+                "BAYUGAN CITY": "BAYUGAN",
+                "LA PAZ": "LA PAZ",
+                "SAN FRANCISCO": "SAN FRANCISCO"
             })
             
-            # Detect the correct key for municipality names
             first_props = ph_geojson['features'][0]['properties']
             key_name = None
-            for k in ['NAME_3', 'ADM3_EN', 'MUNICIPALITY', 'NAME_2']:
+            for k in ['NAME_2', 'NAME_3', 'ADM3_EN', 'MUNICIPALITY', 'name']:
                 if k in first_props:
                     key_name = k
                     break
